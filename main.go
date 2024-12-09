@@ -3,46 +3,159 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
+	"sync"
 	"time"
 
+	"github.com/eiannone/keyboard"
 	"github.com/fatih/color"
 )
 
 const (
-	folderName         = "new_folder"          // Имя папки для тестирования
-	sessionCounterFile = "session_counter.txt" // Файл для хранения счётчика текущей сессии
-	totalCounterFile   = "total_counter.txt"   // Файл для хранения общего счётчика подключений
-	checkInterval      = 2 * time.Second       // Интервал проверки подключения
+	folderName         = "new_folder"
+	sessionCounterFile = "session_counter.txt"
+	totalCounterFile   = "total_counter.txt"
+	checkInterval      = 2 * time.Second
+)
+
+var (
+	exitProgram bool
+	exitMutex   sync.Mutex
 )
 
 func main() {
+	initializeLogger()
+	logInfo("Добро пожаловать в программу мониторинга флешек и работы с папками.")
 
-	logInfo("Мониторинг подключений флешек начат...")
+	go listenForExit() // Горутин для отслеживания клавиши Esc
 
-	// Обнуляем счётчик текущей сессии
-	writeSessionCounter(0)
-
-	flashDrivePath := setDirectoryForcheck()
-
+	currentMode := 1 // По умолчанию режим мониторинга
 	for {
-		// Ожидаем подключения флешки
-		if waitForFlashDrive(flashDrivePath) {
-			// Обрабатываем подключённую флешку
-			handleFlashDrive(flashDrivePath)
+		if shouldExit() {
+			logWarning("Выход из программы.")
+			return
+		}
 
-			// Ждём, пока флешка не будет отключена
-			waitForFlashDriveRemoval(flashDrivePath)
+		switch currentMode {
+		case 1:
+			logInfo("Режим 1: Мониторинг флешек.")
+			currentMode = runFlashDriveMonitorWithSwitch()
+		case 2:
+			logInfo("Режим 2: Ручной режим работы с папками.")
+			currentMode = runManualFolderModeWithSwitch()
+		default:
+			logError("Неверный выбор режима.")
+			currentMode = 1
 		}
 	}
 }
 
-func waitForFlashDrive(path string) bool {
-	// Ожидаем появления пути, указывающего на подключённую флешку
+// Функция для отслеживания клавиши Esc
+func listenForExit() {
+	if err := keyboard.Open(); err != nil {
+		log.Fatalf("Ошибка при открытии клавиатуры: %v", err)
+	}
+	defer keyboard.Close()
+
 	for {
+		_, key, err := keyboard.GetKey()
+		if err != nil {
+			logError(fmt.Sprintf("Ошибка чтения клавиши: %v", err))
+			continue
+		}
+
+		if key == keyboard.KeyEsc {
+			setExitFlag(true)
+			break
+		}
+	}
+}
+
+// Проверка флага выхода
+func shouldExit() bool {
+	exitMutex.Lock()
+	defer exitMutex.Unlock()
+	return exitProgram
+}
+
+// Установка флага выхода
+func setExitFlag(flag bool) {
+	exitMutex.Lock()
+	defer exitMutex.Unlock()
+	exitProgram = flag
+}
+
+// Неблокирующий выбор режима
+func selectModeNonBlocking() int {
+	logInfo("Выберите новый режим (1 или 2). Для продолжения текущего нажмите Enter.")
+	timeout := time.After(5 * time.Second)
+	inputChan := make(chan string)
+
+	go func() {
+		var input string
+		fmt.Scanln(&input)
+		inputChan <- input
+	}()
+
+	select {
+	case input := <-inputChan:
+		if input == "1" || input == "2" {
+			mode, _ := strconv.Atoi(input)
+			return mode
+		}
+	case <-timeout:
+		logInfo("Время выбора режима истекло. Продолжаем текущий режим.")
+	}
+
+	return 1 // Возврат к мониторингу по умолчанию
+}
+
+// Мониторинг флешек с возможностью смены режима
+func runFlashDriveMonitorWithSwitch() int {
+	flashDrivePath := setDirectoryForCheck()
+	for {
+		if shouldExit() {
+			return 0 // Завершение программы
+		}
+
+		if waitForFlashDrive(flashDrivePath) {
+			handleFlashDrive(flashDrivePath)
+			waitForFlashDriveRemoval(flashDrivePath)
+
+			// Проверка на смену режима без блокировки
+			return selectModeNonBlocking()
+		}
+	}
+}
+
+// Ручной режим работы с возможностью смены режима
+func runManualFolderModeWithSwitch() int {
+	flashDrivePath := setDirectoryForCheck()
+	for {
+		if shouldExit() {
+			return 0 // Завершение программы
+		}
+
+		if waitForFlashDrive(flashDrivePath) {
+			handleFlashDriveInteractive(flashDrivePath)
+			waitForFlashDriveRemoval(flashDrivePath)
+
+			// Проверка на смену режима без блокировки
+			return selectModeNonBlocking()
+		}
+	}
+}
+
+// Ожидание подключения флешки
+func waitForFlashDrive(path string) bool {
+	for {
+		if shouldExit() {
+			return false
+		}
+
 		if canAccessFlashDrive(path) {
 			return true
 		}
@@ -50,36 +163,37 @@ func waitForFlashDrive(path string) bool {
 	}
 }
 
+// Ожидание отключения флешки
 func waitForFlashDriveRemoval(path string) {
-	// Ожидаем, пока доступ к флешке не исчезнет (флешка будет отключена)
 	for {
+		if shouldExit() {
+			return
+		}
+
 		if !canAccessFlashDrive(path) {
-			logInfo("Флешка отключена. Ожидание нового подключения...")
+			logInfo("SD карта отключена. Ожидание нового подключения...")
 			return
 		}
 		time.Sleep(checkInterval)
 	}
 }
 
+// Основная обработка флешки
 func handleFlashDrive(path string) {
-	logAction(fmt.Sprintf("Обнаружена флешка: %s", path))
+	handleFlashDriveGeneric(path, false)
+}
 
-	// Чтение/обновление счётчиков
-	sessionCounter := readSessionCounter()
-	sessionCounter++
-	writeSessionCounter(sessionCounter)
-	poemsForFun(sessionCounter)
+// Обработка флешки в интерактивном режиме
+func handleFlashDriveInteractive(path string) {
+	handleFlashDriveGeneric(path, true)
+}
 
-	totalCounter := readTotalCounter()
-	totalCounter++
-	writeTotalCounter(totalCounter)
+// Универсальная обработка флешки
+func handleFlashDriveGeneric(path string, interactive bool) {
+	logAction(fmt.Sprintf("Обнаружена SD карта: %s", path))
 
-	// Путь для создаваемой папки
 	folderPath := filepath.Join(path, folderName)
-
-	// Проверка, существует ли папка
 	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
-		// Если папка не существует, создаём её
 		err := os.Mkdir(folderPath, os.ModePerm)
 		if err != nil {
 			logError(fmt.Sprintf("Ошибка при создании папки: %v", err))
@@ -88,221 +202,78 @@ func handleFlashDrive(path string) {
 		logAction("Папка создана на флешке.")
 	}
 
-	// Удаляем папку сразу после создания
+	if interactive {
+		logInfo("Нажмите Enter для удаления папки.")
+		fmt.Scanln()
+	}
+
 	err := os.RemoveAll(folderPath)
 	if err != nil {
 		logError(fmt.Sprintf("Ошибка при удалении папки: %v", err))
 		return
 	}
-	logAction("Папка удалена с флешки.")
-
-	// Очищаем всю флешку
-	err = cleanFlashDrive(path)
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка при очистке флешки: %v", err))
-		return
-	}
-	logSuccess("Флешка очищена.")
-
-	// Информация о количестве подключений
-	logInfo(fmt.Sprintf("Количество подключений в текущей сессии: %d", sessionCounter))
-	logInfo(fmt.Sprintf("Общее количество подключений флешки: %d\n", totalCounter))
+	logAction("Папка удалена с SD карты.")
 }
 
+// Проверка доступа к флешке
 func canAccessFlashDrive(path string) bool {
-	// Проверяем доступность флешки через попытку чтения её содержимого
 	_, err := ioutil.ReadDir(path)
 	return err == nil
 }
 
-func readSessionCounter() int {
-	// Чтение счётчика текущей сессии
-	data, err := ioutil.ReadFile(sessionCounterFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Если файл не существует, начинаем с нуля
-			return 0
+// Настройка директории для проверки
+func setDirectoryForCheck() string {
+	for {
+		logInput("Введите имя диска для проверки (например, H, G) или нажмите 1 для диска по умолчанию: H")
+		var disc string
+		fmt.Scan(&disc)
+
+		if disc == "1" {
+			disc = "H"
 		}
-		logError(fmt.Sprintf("Ошибка при чтении файла счётчика сессии: %v", err))
-		return 0
-	}
-
-	// Преобразование содержимого файла в число
-	counter, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка преобразования счётчика сессии: %v", err))
-		return 0
-	}
-
-	return counter
-}
-
-func writeSessionCounter(counter int) {
-	// Запись счётчика текущей сессии в файл
-	err := ioutil.WriteFile(sessionCounterFile, []byte(strconv.Itoa(counter)), 0644)
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка при записи файла счётчика сессии: %v", err))
-	}
-}
-
-func readTotalCounter() int {
-	// Чтение общего счётчика
-	data, err := ioutil.ReadFile(totalCounterFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Если файл не существует, начинаем с нуля
-			return 0
+		path := disc + ":"
+		if canAccessFlashDrive(path) {
+			logSuccess(fmt.Sprintf("Выбрана директория: %s", path))
+			return path
 		}
-		logError(fmt.Sprintf("Ошибка при чтении файла общего счётчика: %v", err))
-		return 0
+		logError(fmt.Sprintf("Диск %s недоступен. Попробуйте снова.", path))
 	}
+}
 
-	// Преобразование содержимого файла в число
-	counter, err := strconv.Atoi(strings.TrimSpace(string(data)))
+// Логирование
+func initializeLogger() {
+	logFile, err := os.OpenFile("program.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		logError(fmt.Sprintf("Ошибка преобразования общего счётчика: %v", err))
-		return 0
+		log.Fatalf("Не удалось создать лог-файл: %v", err)
 	}
-
-	return counter
-}
-
-func writeTotalCounter(counter int) {
-	// Запись общего счётчика в файл
-	err := ioutil.WriteFile(totalCounterFile, []byte(strconv.Itoa(counter)), 0644)
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка при записи файла общего счётчика: %v", err))
-	}
-}
-
-func cleanFlashDrive(path string) error {
-	// Очищаем всю флешку, удаляя всё её содержимое
-	files, err := ioutil.ReadDir(path)
-	if err != nil {
-		return err
-	}
-
-	for _, file := range files {
-		fullPath := filepath.Join(path, file.Name())
-		if err := os.RemoveAll(fullPath); err != nil {
-			logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
-		}
-	}
-
-	return nil
-}
-
-func setDirectoryForcheck() string {
-	var disc string
-	logInput(fmt.Sprintf("Введите имя диска для проверки (SD карта в проводнике \"H\",\"G\"...)"))
-	logInput("Для выбора диска по умолчанию нажмите Введите \"1\", диск по умолчани. : \"H\"")
-	fmt.Scan(&disc)
-	if disc == "1" {
-		return "H:"
-	}
-	return disc + ":"
-}
-
-func poemsForFun(count int) {
-	switch count {
-	case 50:
-		logWarning(`Я научилась просто, мудро жить,
-Смотреть на небо и молиться Богу,
-И долго перед вечером бродить,
-Чтоб утомить ненужную тревогу.`)
-	case 100:
-		logWarning(`Шут, шут! Я встретил здесь
-В лесу шута - шута в ливрее пестрой.
-О, жалкий мир! Да, это верно так,
-Как то, что я живу посредством пищи,
-Шут встречен мной. Лежал он на земле
-И, греючись на солнце, тут же
-Сударыню-фортуну он честил
-Хорошими, разумными словами,
-А между тем он просто пестрый шут.
-"Здорово, шут!" - сказал я. "Нет уж, сударь, -
-Он отвечал, - не называйте вы
-Меня шутом, пока богатства небо
-Мне не пошлет". Затем полез в карман
-И, вытащив часы, бесцветным взглядом
-На них взглянул и мудро произнес:
-"Десятый час! - И вслед за тем прибавил:
-- Здесь видим мы, как двигается мир:
-Всего лишь час назад был час девятый,
-А час пройдет - одиннадцать пробьет;
-И так-то вот мы с каждым часом зреем,
-И так-то вот гнием мы каждый час.
-И тут конец всей сказочке". Чуть только
-Услышал я, что этот пестрый шут
-О времени так рассуждает - печень
-Моя сейчас запела петухом
-От радости, что водятся такие
-Мыслители среди шутов, и я
-Час целый по его часам смеялся.`)
-	case 200:
-		logWarning(`Когда теряет равновесие
-Твое сознание усталое,
-Когда ступени этой лестницы
-Уходят из-под ног,
-Как палуба,
-Когда плюет на человечество
-Твое ночное одиночество, —
-Ты можешь
-Размышлять о вечности
-И сомневаться в непорочности
-Идей, гипотез, восприятия
-Произведения искусства,
-И — кстати — самого зачатия
-Мадонной сына Иисуса.
-Но лучше поклоняться данности
-С ее глубокими могилами,
-Которые потом,
-За давностью,
-Покажутся такими милыми.
-Да. Лучше поклоняться данности
-С короткими ее дорогами,
-Которые потом
-До странности
-Покажутся тебе
-Широкими,
-Покажутся большими,
-Пыльными,
-Усеянными компромиссами,
-Покажутся большими крыльями,
-Покажутся большими птицами.
-Да. Лучше поклоняться данности
-С убогими ее мерилами,
-Которые потом,
-По крайности,
-Послужат для тебя перилами,
-(Хотя и не особо чистыми),
-Удерживающими в равновесии
-Твои хромающие истины
-На этой выщербленной лестнице.`)
-		return
-
-	}
+	log.SetOutput(logFile)
 }
 
 func logInfo(message string) {
 	color.New(color.FgWhite).Printf("[INFO] %s\n", message)
+	log.Println("[INFO] " + message)
 }
 
 func logAction(message string) {
 	color.New(color.FgYellow).Printf("[ACTION] %s\n", message)
+	log.Println("[ACTION] " + message)
 }
 
 func logSuccess(message string) {
 	color.New(color.FgCyan).Printf("[SUCCESS] %s\n", message)
+	log.Println("[SUCCESS] " + message)
 }
 
 func logError(message string) {
 	color.New(color.FgRed).Printf("[ERROR] %s\n", message)
+	log.Println("[ERROR] " + message)
 }
+
 func logInput(message string) {
 	color.New(color.FgGreen).Printf("[INPUT] %s\n", message)
 }
 
 func logWarning(message string) {
 	color.New(color.FgHiGreen).Printf("[WARNING] %s\n", message)
+	log.Println("[WARNING] " + message)
 }
