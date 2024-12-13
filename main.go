@@ -128,13 +128,6 @@ func handleFlashDrive2(path string) {
 func handleFlashDrive(path string) {
 	logAction(fmt.Sprintf("Обнаружена SD карта: %s", path))
 
-	sessionCounter := readSessionCounter() + 1
-	writeSessionCounter(sessionCounter)
-	poemsForFun(sessionCounter)
-
-	totalCounter := readTotalCounter() + 1
-	writeTotalCounter(totalCounter)
-
 	folderPath := filepath.Join(path, folderName)
 	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
 		err := os.Mkdir(folderPath, os.ModePerm)
@@ -158,6 +151,12 @@ func handleFlashDrive(path string) {
 		return
 	}
 	logSuccess("SD карта очищена.")
+	sessionCounter := readSessionCounter() + 1
+	writeSessionCounter(sessionCounter)
+	poemsForFun(sessionCounter)
+
+	totalCounter := readTotalCounter() + 1
+	writeTotalCounter(totalCounter)
 
 	logInfo(fmt.Sprintf("Количество подключений в текущей сессии: %d", sessionCounter))
 	logInfo(fmt.Sprintf("Общее количество подключений флешек: %d\n", totalCounter))
@@ -186,7 +185,7 @@ func cleanFlashDrive(path string) error {
 
 func setDirectoryForcheck() string {
 	var disc string
-	logInput("Введите имя диска для проверки (например, H, G) или нажмите 1 для диска по умолчанию: H")
+	logInput("Вставьте SD карту в ридер\nВведите имя диска для проверки (например, H, G) или нажмите 1 для диска по умолчанию: H")
 	fmt.Scan(&disc)
 	if disc == "1" {
 		return "H:"
