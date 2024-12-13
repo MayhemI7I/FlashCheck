@@ -18,15 +18,17 @@ const (
 	sessionCounterFile = "session_counter.txt"
 	totalCounterFile   = "total_counter.txt"
 	checkInterval      = 2 * time.Second
+	welcomeText        = "Здаровки"
+	welcomeFileName    = "Приветствие"
 )
 
 func main() {
-	logInfo("Добро пожаловать в программу мониторинга флешек и работы с папками.")
+	logInfo("Добро пожаловать в программу мониторинга накопителя данных и работы с папками.")
 	for {
 		mode := selectMode()
 		switch mode {
 		case 1:
-			logInfo("Режим 1: Мониторинг флешек.")
+			logInfo("Режим 1: Мониторинг накопителя данных.")
 			runFlashDriveMonitor()
 		case 2:
 			logInfo("Режим 2: Ручной режим работы с папками.")
@@ -81,7 +83,7 @@ func waitForFlashDriveRemoval(path string) {
 }
 
 func handleFlashDrive2(path string) {
-	logAction(fmt.Sprintf("Обнаружена SD карта : %s", path))
+	logAction(fmt.Sprintf("Обнаружен накопитель данных: %s", path))
 
 	sessionCounter := readSessionCounter() + 1
 	writeSessionCounter(sessionCounter)
@@ -101,7 +103,9 @@ func handleFlashDrive2(path string) {
 			logError(fmt.Sprintf("Ошибка при создании папки: %v", err))
 			return
 		}
-		logAction("Папка создана на флешке.")
+		logAction("Успешное создание папки")
+		createWelcomeFile(folderPath)
+
 	}
 
 	logInfo("Нажмите 2 для удаления папки")
@@ -112,7 +116,8 @@ func handleFlashDrive2(path string) {
 		logError(fmt.Sprintf("Ошибка при удалении папки: %v", err))
 		return
 	}
-	logAction("Папка удалена с флешки.")
+	logAction("Папка удалена.")
+	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 
 	err = cleanFlashDrive(path)
 	if err != nil {
@@ -138,12 +143,15 @@ func handleFlashDrive(path string) {
 		logAction("Папка создана на флешке.")
 	}
 
+	createWelcomeFile(folderPath)
+
 	err := os.RemoveAll(folderPath)
 	if err != nil {
 		logError(fmt.Sprintf("Ошибка при удалении папки: %v", err))
 		return
 	}
-	logAction("Папка удалена с SD карты.")
+	logAction("Папка удалена.")
+	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 
 	err = cleanFlashDrive(path)
 	if err != nil {
@@ -253,6 +261,23 @@ func writeCounter(filename string, counter int) {
 	if err != nil {
 		logError(fmt.Sprintf("Ошибка записи %s: %v", filename, err))
 	}
+}
+
+func createWelcomeFile(folderPath string) {
+	filePath := filepath.Join(folderPath, welcomeFileName)
+	file, err := os.Create(filePath)
+	if err != nil {
+		logError(fmt.Sprintf("Ошибка при создании приветственного файла: %v", err))
+		return
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(welcomeText)
+	if err != nil {
+		logError(fmt.Sprintf("Ошибка записи в файл: %v", err))
+		return
+	}
+	logAction(fmt.Sprintf("Приветственный файл '%s' создан.", welcomeFileName))
 }
 func poemsForFun(count int) {
 	switch count {
