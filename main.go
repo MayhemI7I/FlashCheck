@@ -45,7 +45,7 @@ func main() {
 // Функция для выбора режима работы
 func selectMode() int {
 	var mode int
-	logInput("Выберите режим работы:\n1 - Мониторинг флешек\n2 - Ручной режим работы с папками\n0 - Выход")
+	logInput("Выберите режим работы:\n1 - Автоматический режим работы\n2 - Мануальный режим работы с папками\n0 - Выход")
 	fmt.Scan(&mode)
 	return mode
 }
@@ -75,7 +75,7 @@ func waitForFlashDrive(path string) bool {
 func waitForFlashDriveRemoval(path string) {
 	for {
 		if !canAccessFlashDrive(path) {
-			logInfo("SD карта отключена. Ожидание нового подключения...")
+			logInfo("Накопитель данных данных отключен. Ожидание нового подключения...")
 			return
 		}
 		time.Sleep(checkInterval)
@@ -119,19 +119,19 @@ func handleFlashDrive2(path string) {
 	logAction("Папка удалена.")
 	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 
-	err = cleanFlashDrive(path)
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка при очистке флешки: %v", err))
-		return
-	}
-	logSuccess("SD карта очищена.")
+	// err = cleanFlashDrive(path)
+	// if err != nil {
+	// 	logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
+	// 	return
+	// }
+	// logSuccess("Накопитель данных очищен.")
 
 	logInfo(fmt.Sprintf("Количество подключений в текущей сессии: %d", sessionCounter))
 	logInfo(fmt.Sprintf("Общее количество подключений флешек: %d\n", totalCounter))
 }
 
 func handleFlashDrive(path string) {
-	logAction(fmt.Sprintf("Обнаружена SD карта: %s", path))
+	logAction(fmt.Sprintf("Обнаружен Накопитель данных: %s", path))
 
 	folderPath := filepath.Join(path, folderName)
 	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
@@ -140,7 +140,7 @@ func handleFlashDrive(path string) {
 			logError(fmt.Sprintf("Ошибка при создании папки: %v", err))
 			return
 		}
-		logAction("Папка создана на флешке.")
+		logAction("Папка создана.")
 	}
 
 	createWelcomeFile(folderPath)
@@ -153,12 +153,12 @@ func handleFlashDrive(path string) {
 	logAction("Папка удалена.")
 	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 
-	err = cleanFlashDrive(path)
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка при очистке флешки: %v", err))
-		return
-	}
-	logSuccess("SD карта очищена.")
+	// err = cleanFlashDrive(path)
+	// if err != nil {
+	// 	logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
+	// 	return
+	// }
+	logSuccess("Накопитель данных очищен.")
 	sessionCounter := readSessionCounter() + 1
 	writeSessionCounter(sessionCounter)
 	poemsForFun(sessionCounter)
@@ -167,7 +167,7 @@ func handleFlashDrive(path string) {
 	writeTotalCounter(totalCounter)
 
 	logInfo(fmt.Sprintf("Количество подключений в текущей сессии: %d", sessionCounter))
-	logInfo(fmt.Sprintf("Общее количество подключений флешек: %d\n", totalCounter))
+	logInfo(fmt.Sprintf("Общее количество подключений накопителя данных: %d\n", totalCounter))
 }
 
 func canAccessFlashDrive(path string) bool {
@@ -175,30 +175,31 @@ func canAccessFlashDrive(path string) bool {
 	return err == nil
 }
 
-func cleanFlashDrive(path string) error {
-	files, err := ioutil.ReadDir(path)
-	if err != nil {
-		return err
-	}
+//Функция полно очистки всего содержимого на накопителе данных( временно не работает)
+//func cleanFlashDrive(path string) error {
+// 	files, err := ioutil.ReadDir(path)
+// 	if err != nil {
+// 		return err
+// 	}F
 
-	for _, file := range files {
-		fullPath := filepath.Join(path, file.Name())
-		if err := os.RemoveAll(fullPath); err != nil {
-			logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
-		}
-	}
+// 	for _, file := range files {
+// 		fullPath := filepath.Join(path, file.Name())
+// 		if err := os.RemoveAll(fullPath); err != nil {
+// 			logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func setDirectoryForcheck() string {
 	var disc string
-	logInput("Вставьте SD карту в ридер\nВведите имя диска для проверки (например, H, G) или нажмите 1 для диска по умолчанию: H")
+	logInput("Вставьте Накопитель данных в ридер\nВведите название тома диска для проверки (например, \"H\", \"G\") или нажмите 1 для диска по умолчанию: \"H\"")
 	fmt.Scan(&disc)
 	if disc == "1" {
 		return "H:"
 	}
-	logInput("Вставьте SD карту")
+	logInput("Вставьте Накопитель данных")
 	return disc + ":"
 }
 
