@@ -117,15 +117,14 @@ func handleFlashDrive2(path string) {
 		return
 	}
 	logAction("Папка удалена.")
-	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 
-	err = cleanFlashDrive(path)
+	err = cleanFlashDrive(path, "manual")
 	if err != nil {
 		logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
 		return
 	}
 	logSuccess("Накопитель данных очищен.")
-
+	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 	logInfo(fmt.Sprintf("Количество подключений в текущей сессии: %d", sessionCounter))
 	logInfo(fmt.Sprintf("Общее количество подключений флешек: %d\n", totalCounter))
 }
@@ -151,14 +150,14 @@ func handleFlashDrive(path string) {
 		return
 	}
 	logAction("Папка удалена.")
-	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 
-	err = cleanFlashDrive(path)
+	err = cleanFlashDrive(path, "auto")
 	if err != nil {
 		logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
 		return
 	}
 	logSuccess("Накопитель данных очищен.")
+	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 	sessionCounter := readSessionCounter() + 1
 	writeSessionCounter(sessionCounter)
 	poemsForFun(sessionCounter)
@@ -176,20 +175,64 @@ func canAccessFlashDrive(path string) bool {
 }
 
 //Функция полно очистки всего содержимого на накопителе данных( временно не работает)
-func cleanFlashDrive(path string) error {
-	files, err := ioutil.ReadDir(path)
-	if err != nil {
-		return err
-	}
 
-	for _, file := range files {
-		fullPath := filepath.Join(path, file.Name())
-		if err := os.RemoveAll(fullPath); err != nil {
-			logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
+func cleanFlashDrive(path string, mode string) error {
+	if mode == "manual" {
+		var inputUser string
+		logInfo("Введите 1, для полного форматирования накопителя, или 0 для пропуска форматирования: ")
+		_, err := fmt.Scan(&inputUser)
+		if err != nil {
+			return fmt.Errorf("ошибка ввода: %v", err)
 		}
+
+		// Преобразуем ввод в число
+		if inputUser == "1" {
+			files, err := ioutil.ReadDir(path)
+			if err != nil {
+				return err
+			}
+
+			for _, file := range files {
+				fullPath := filepath.Join(path, file.Name())
+				if file.Name() == "System Volume Information" {
+					continue
+				}
+				err := os.RemoveAll(fullPath)
+				if err != nil {
+					logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
+					continue // Пропускаем ошибочные файлы и продолжаем удаление
+				}
+				logAction(fmt.Sprintf("Удалено: %s", fullPath))
+			}
+
+			logAction("Форматирование завершено.")
+			return nil
+		}
+
+		logAction("Форматирование пропущено.")
+		return nil
+	} else {
+		files, err := ioutil.ReadDir(path)
+		if err != nil {
+			return err
+		}
+		for _, file := range files {
+			fullPath := filepath.Join(path, file.Name())
+			if file.Name() == "System Volume Information" {
+				continue
+			}
+			err := os.RemoveAll(fullPath)
+			if err != nil {
+				logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
+				continue // Пропускаем ошибочные файлы и продолжаем удаление
+			}
+			logAction(fmt.Sprintf("Удалено: %s", fullPath))
+		}
+
+		logAction("Форматирование завершено.")
+		return nil
 	}
 
-	return nil
 }
 
 func setDirectoryForcheck() string {
