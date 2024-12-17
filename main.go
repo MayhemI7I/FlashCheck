@@ -50,7 +50,7 @@ func selectMode() int {
 	return mode
 }
 
-// Мониторинг флешек
+// Мониторинг накопителей данныйх
 func runFlashDriveMonitor() {
 	writeSessionCounter(0)
 	flashDrivePath := setDirectoryForcheck()
@@ -119,12 +119,12 @@ func handleFlashDrive2(path string) {
 	logAction("Папка удалена.")
 	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 
-	// err = cleanFlashDrive(path)
-	// if err != nil {
-	// 	logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
-	// 	return
-	// }
-	// logSuccess("Накопитель данных очищен.")
+	err = cleanFlashDrive(path)
+	if err != nil {
+		logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
+		return
+	}
+	logSuccess("Накопитель данных очищен.")
 
 	logInfo(fmt.Sprintf("Количество подключений в текущей сессии: %d", sessionCounter))
 	logInfo(fmt.Sprintf("Общее количество подключений флешек: %d\n", totalCounter))
@@ -153,11 +153,11 @@ func handleFlashDrive(path string) {
 	logAction("Папка удалена.")
 	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 
-	// err = cleanFlashDrive(path)
-	// if err != nil {
-	// 	logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
-	// 	return
-	// }
+	err = cleanFlashDrive(path)
+	if err != nil {
+		logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
+		return
+	}
 	logSuccess("Накопитель данных очищен.")
 	sessionCounter := readSessionCounter() + 1
 	writeSessionCounter(sessionCounter)
@@ -176,21 +176,21 @@ func canAccessFlashDrive(path string) bool {
 }
 
 //Функция полно очистки всего содержимого на накопителе данных( временно не работает)
-//func cleanFlashDrive(path string) error {
-// 	files, err := ioutil.ReadDir(path)
-// 	if err != nil {
-// 		return err
-// 	}F
+func cleanFlashDrive(path string) error {
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return err
+	}
 
-// 	for _, file := range files {
-// 		fullPath := filepath.Join(path, file.Name())
-// 		if err := os.RemoveAll(fullPath); err != nil {
-// 			logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
-// 		}
-// 	}
+	for _, file := range files {
+		fullPath := filepath.Join(path, file.Name())
+		if err := os.RemoveAll(fullPath); err != nil {
+			logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
+		}
+	}
 
-// 	return nil
-// }
+	return nil
+}
 
 func setDirectoryForcheck() string {
 	var disc string
@@ -251,7 +251,7 @@ func readCounter(filename string) int {
 	}
 	counter, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil {
-		logError(fmt.Sprintf("Ошибка преобразования %s: %v", filename, err))
+		logError(fmt.Sprintf("Ошибка преобразования. Файл не содержит записей(игнорировать при первой проверке) %s: %v", filename, err))
 		return 0
 	}
 	return counter
@@ -312,7 +312,7 @@ func poemsForFun(count int) {
 И тут конец всей сказочке". Чуть только
 Услышал я, что этот пестрый шут
 О времени так рассуждает - печень
-Моя сейчас запела петухом
+Моя сейчас запела петухомgit
 От радости, что водятся такие
 Мыслители среди шутов, и я
 Час целый по его часам смеялся.`)
