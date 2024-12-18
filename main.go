@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"local/utils"
+	"SD_Check/utils"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -138,47 +138,61 @@ func handleFlashDrive2(path string) {
 }
 
 func handleFlashDrive(path string) {
-	logAction(fmt.Sprintf("Обнаружен Накопитель данных: %s", path))
+  // Записываем в лог информацию о найденном накопителе данных
+  logAction(fmt.Sprintf("Обнаружен Накопитель данных: %s", path))
 
-	folderPath := filepath.Join(path, folderName)
-	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
-		err := os.Mkdir(folderPath, os.ModePerm)
-		if err != nil {
-			logError(fmt.Sprintf("Ошибка при создании папки: %v", err))
-			return
-		}
-		logAction("Папка создана.")
-	}
+  // Создаем путь к папке внутри накопителя данных
+  folderPath := filepath.Join(path, folderName)
+  if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+  	// Если папка уже существует, пропускаем ее создание
+  	err := os.Mkdir(folderPath, os.ModePerm)
+  	if err != nil {
+  		// Если возникла ошибка при создании папки, регистрируем ошибку и возвращаемся
+  		logError(fmt.Sprintf("Ошибка при создании папки: %v", err))
+  		return
+  	}
+  	logAction("Папка создана.")
+  }
 
-	createWelcomeFile(folderPath)
+  // Создаем приветственный файл внутри папки
+  createWelcomeFile(folderPath)
 
-	err := os.RemoveAll(folderPath)
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка при удалении папки: %v", err))
-		return
-	}
-	logAction("Папка удалена.")
+  // Удаляем всю папку с накопителя данных
+  err := os.RemoveAll(folderPath)
+  if err != nil {
+  	// Если возникла ошибка при удалении папки, регистрируем ошибку и возвращаемся
+  	logError(fmt.Sprintf("Ошибка при удалении папки: %v", err))
+  	return
+  }
+  logAction("Папка удалена.")
 
-	err = cleanFlashDrive(path, "auto")
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
-		return
-	}
-	logSuccess("Накопитель данных очищен.")
-	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
+  // Очищаем накопитель данных
+  err = cleanFlashDrive(path, "auto")
+  if err != nil {
+  	// Если возникла ошибка при очистке накопителя данных, регистрируем ошибку и возвращаемся
+  	logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
+  	return
+  }
+  logSuccess("Накопитель данных очищен.")
+  logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
 
-	sessionCounter := readSessionCounter() + 1
-	writeSessionCounter(sessionCounter)
-	poemsForFun(sessionCounter)
+  // Читаем и увеличиваем счётчик сессий
+  sessionCounter := readSessionCounter() + 1
+  writeSessionCounter(sessionCounter)
+  poemsForFun(sessionCounter)
 
-	totalCounter := readTotalCounter() + 1
-	writeTotalCounter(totalCounter)
+  // Читаем и увеличиваем общее количество подключений
+  totalCounter := readTotalCounter() + 1
+  writeTotalCounter(totalCounter)
 
-	utils.AppLogger.Printf("Время успешной проверки накопителя данных № %d: %s", totalCounter, time.Now().Format("2006-01-02 15:04:05"))
+  // Записываем в лог время успешной проверки накопителя данных
+  utils.AppLogger.Printf("Время успешной проверки накопителя данных № %d: %s", totalCounter, time.Now().Format("2006-01-02 15:04:05"))
 
-	logInfo(fmt.Sprintf("Количество подключений в текущей сессии: %d", sessionCounter))
-	logInfo(fmt.Sprintf("Общее количество подключений накопителя данных: %d\n", totalCounter))
+  // Записываем информацию о количестве подключений в текущей сессии и общем количестве подключений
+  logInfo(fmt.Sprintf("Количество подключений в текущей сессии: %d", sessionCounter))
+  logInfo(fmt.Sprintf("Общее количество подключений накопителя данных: %d\n", totalCounter))
 }
+
 
 func canAccessFlashDrive(path string) bool {
 	_, err := ioutil.ReadDir(path)
@@ -188,63 +202,65 @@ func canAccessFlashDrive(path string) bool {
 //Функция полно очистки всего содержимого на накопителе данных( временно не работает)
 
 func cleanFlashDrive(path string, mode string) error {
-	if mode == "manual" {
-		var inputUser string
-		logInfo("Введите 1, для полного форматирования накопителя, или 0 для пропуска форматирования: ")
-		_, err := fmt.Scan(&inputUser)
-		if err != nil {
-			return fmt.Errorf("ошибка ввода: %v", err)
-		}
+  if mode == "manual" {
+  	// Запрашиваем у пользователя подтверждение полного форматирования
+  	var inputUser string
+  	logInfo("Введите 1, для полного форматирования накопителя, или 0 для пропуска форматирования: ")
+  	_, err := fmt.Scan(&inputUser)
+  	if err != nil {
+  		return fmt.Errorf("ошибка ввода: %v", err)
+  	}
 
-		// Преобразуем ввод в число
-		if inputUser == "1" {
-			files, err := ioutil.ReadDir(path)
-			if err != nil {
-				return err
-			}
+  	// Преобразуем ввод в число
+  	if inputUser == "1" {
+  		files, err := ioutil.ReadDir(path)
+  		if err != nil {
+  			return err
+  		}
 
-			for _, file := range files {
-				fullPath := filepath.Join(path, file.Name())
-				if file.Name() == "System Volume Information" {
-					continue
-				}
-				err := os.RemoveAll(fullPath)
-				if err != nil {
-					logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
-					continue // Пропускаем ошибочные файлы и продолжаем удаление
-				}
-				logAction(fmt.Sprintf("Удалено: %s", fullPath))
-			}
+  		for _, file := range files {
+  			fullPath := filepath.Join(path, file.Name())
+  			if file.Name() == "System Volume Information" {
+  				continue
+  			}
+  			err := os.RemoveAll(fullPath)
+  			if err != nil {
+  				logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
+  				continue // Пропускаем ошибочные файлы и продолжаем удаление
+  			}
+  			logAction(fmt.Sprintf("Удалено: %s", fullPath))
+  		}
 
-			logAction("Форматирование завершено.")
-			return nil
-		}
+  		logAction("Форматирование завершено.")
+  		return nil
+  	}
 
-		logAction("Форматирование пропущено.")
-		return nil
-	} else {
-		files, err := ioutil.ReadDir(path)
-		if err != nil {
-			return err
-		}
-		for _, file := range files {
-			fullPath := filepath.Join(path, file.Name())
-			if file.Name() == "System Volume Information" {
-				continue
-			}
-			err := os.RemoveAll(fullPath)
-			if err != nil {
-				logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
-				continue // Пропускаем ошибочные файлы и продолжаем удаление
-			}
-			logAction(fmt.Sprintf("Удалено: %s", fullPath))
-		}
+  	logAction("Форматирование пропущено.")
+  	return nil
+  } else {
+  	files, err := ioutil.ReadDir(path)
+  	if err != nil {
+  		return err
+  	}
+  	for _, file := range files {
+  		fullPath := filepath.Join(path, file.Name())
+  		if file.Name() == "System Volume Information" {
+  			continue
+  		}
+  		err := os.RemoveAll(fullPath)
+  		if err != nil {
+  			logError(fmt.Sprintf("Не удалось удалить %s: %v", fullPath, err))
+  			continue // Пропускаем ошибочные файлы и продолжаем удаление
+  		}
+  		logAction(fmt.Sprintf("Удалено: %s", fullPath))
+  	}
 
-		logAction("Форматирование завершено.")
-		return nil
-	}
+  	logAction("Форматирование завершено.")
+  	return nil
+  }
 
 }
+
 
 func setDirectoryForcheck() string {
 	var disc string
@@ -312,28 +328,43 @@ func readCounter(filename string) int {
 }
 
 func writeCounter(filename string, counter int) {
-	err := ioutil.WriteFile(filename, []byte(strconv.Itoa(counter)), 0644)
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка записи %s: %v", filename, err))
-	}
+  // Преобразуем счетчик в строку и записываем ее в файл
+  err := ioutil.WriteFile(filename, []byte(strconv.Itoa(counter)), 0644)
+  if err != nil {
+  	// Если возникла ошибка при записи в файл, регистрируем ошибку
+  	logError(fmt.Sprintf("Ошибка записи %s: %v", filename, err))
+  }
 }
 
+
+// createWelcomeFile создает приветственный файл в указанной папке.
 func createWelcomeFile(folderPath string) {
-	filePath := filepath.Join(folderPath, welcomeFileName)
-	file, err := os.Create(filePath)
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка при создании приветственного файла: %v", err))
-		return
-	}
-	defer file.Close()
+  // Объединяем путь к папке и имя файла приветствия, чтобы получить полный путь к файлу
+  filePath := filepath.Join(folderPath, welcomeFileName)
 
-	_, err = file.WriteString(welcomeText)
-	if err != nil {
-		logError(fmt.Sprintf("Ошибка записи в файл: %v", err))
-		return
-	}
-	logAction(fmt.Sprintf("Приветственный файл '%s' создан.", welcomeFileName))
+  // Создаем файл по указанному пути
+  file, err := os.Create(filePath)
+  if err != nil {
+  	// Если возникла ошибка при создании файла, регистрируем ошибку и возвращаемся
+  	logError(fmt.Sprintf("Ошибка при создании приветственного файла: %v", err))
+  	return
+  }
+  // Убеждаемся, что файл будет закрыт при возврате из функции
+  defer file.Close()
+
+  // Записываем текст приветствия в файл
+  _, err = file.WriteString(welcomeText)
+  if err != nil {
+  	// Если возникла ошибка при записи в файл, регистрируем ошибку и возвращаемся
+  	logError(fmt.Sprintf("Ошибка записи в файл: %v", err))
+  	return
+  }
+
+  // Записываем сообщение о том, что файл приветствия был создан
+  logAction(fmt.Sprintf("Приветственный файл '%s' создан.", welcomeFileName))
 }
+
+
 func poemsForFun(count int) {
 	switch count {
 	case 50:

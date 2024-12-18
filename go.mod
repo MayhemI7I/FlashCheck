@@ -1,4 +1,4 @@
-module local
+module SD_Check
 
 go 1.23.2
 
