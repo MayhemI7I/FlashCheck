@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"local/utils"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,9 +21,13 @@ const (
 	checkInterval      = 2 * time.Second
 	welcomeText        = "Здаровки"
 	welcomeFileName    = "Приветствие"
+	logFileName        = "app.log"
 )
 
 func main() {
+
+	utils.InitLog(logFileName)
+
 	logInfo("Добро пожаловать в программу мониторинга накопителя данных и работы с папками.")
 	for {
 		mode := selectMode()
@@ -85,13 +90,6 @@ func waitForFlashDriveRemoval(path string) {
 func handleFlashDrive2(path string) {
 	logAction(fmt.Sprintf("Обнаружен накопитель данных: %s", path))
 
-	sessionCounter := readSessionCounter() + 1
-	writeSessionCounter(sessionCounter)
-	poemsForFun(sessionCounter)
-
-	totalCounter := readTotalCounter() + 1
-	writeTotalCounter(totalCounter)
-
 	folderPath := filepath.Join(path, folderName)
 	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
 		logInfo("Нажмите 1 для создания папки")
@@ -123,8 +121,18 @@ func handleFlashDrive2(path string) {
 		logError(fmt.Sprintf("Ошибка при очистке накопителя данных: %v", err))
 		return
 	}
+	sessionCounter := readSessionCounter() + 1
+	writeSessionCounter(sessionCounter)
+	poemsForFun(sessionCounter)
+
+	totalCounter := readTotalCounter() + 1
+	writeTotalCounter(totalCounter)
+
 	logSuccess("Накопитель данных очищен.")
 	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
+
+	utils.AppLogger.Printf("Время успешной проверки накопителя данных № %d: %s", totalCounter, time.Now().Format("2006-01-02 15:04:05"))
+
 	logInfo(fmt.Sprintf("Количество подключений в текущей сессии: %d", sessionCounter))
 	logInfo(fmt.Sprintf("Общее количество подключений флешек: %d\n", totalCounter))
 }
@@ -158,12 +166,15 @@ func handleFlashDrive(path string) {
 	}
 	logSuccess("Накопитель данных очищен.")
 	logSuccess(fmt.Sprintf("Время успешной проверки накопителя данных: %s", time.Now().Format("2006-01-02 15:04:05")))
+
 	sessionCounter := readSessionCounter() + 1
 	writeSessionCounter(sessionCounter)
 	poemsForFun(sessionCounter)
 
 	totalCounter := readTotalCounter() + 1
 	writeTotalCounter(totalCounter)
+
+	utils.AppLogger.Printf("Время успешной проверки накопителя данных № %d: %s", totalCounter, time.Now().Format("2006-01-02 15:04:05"))
 
 	logInfo(fmt.Sprintf("Количество подключений в текущей сессии: %d", sessionCounter))
 	logInfo(fmt.Sprintf("Общее количество подключений накопителя данных: %d\n", totalCounter))
@@ -419,6 +430,7 @@ func logSuccess(message string) {
 
 func logError(message string) {
 	color.New(color.FgRed).Printf("[ERROR] %s\n", message)
+	utils.AppLogger.Printf("[ERROR] %s\n", message)
 }
 
 func logInput(message string) {
@@ -427,4 +439,5 @@ func logInput(message string) {
 
 func logWarning(message string) {
 	color.New(color.FgHiGreen).Printf("[WARNING] %s\n", message)
+	utils.AppLogger.Printf("[WARNING] %s\n", message)
 }
